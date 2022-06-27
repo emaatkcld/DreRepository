@@ -1,0 +1,815 @@
+AWSTemplateFormatVersion: 2010-09-09
+Parameters:
+  Environment:
+    Description: "Application Environment"
+    Type: String
+    Default: development
+    AllowedValues:
+      - development
+      - testing
+      - acceptance
+      - production
+  VPCCIDR:
+    Description: VPC CIDR Block
+    Type: String
+    Default: 66.6.0.0/16
+  SNCIDRs:
+    Description: "Comma-delimited list of CIDR blocks"
+    Type: CommaDelimitedList
+    Default: "66.6.0.0/24, 66.6.1.0/24, 66.6.2.0/24, 66.6.3.0/24, 66.6.4.0/24, 66.6.5.0/24, 66.6.6.0/24, 66.6.7.0/24, 66.6.8.0/24, 66.6.9.0/24, 66.6.10.0/24, 66.6.11.0/24"
+  AMI:
+    Description: Latest EC2 AMI
+    Type: "AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>"
+    Default: "/aws/service/ami-amazon-linux-latest/amzn2-ami-kernel-5.10-hvm-x86_64-gp2"
+  InstanceType:
+    Description: Processor Size/Type
+    Type: String
+    Default: "Small-Use-For-Dev"
+    AllowedValues: [Small-Use-For-Dev, Medium-Use-For-Test, Big-Use-For-Prod]
+  VolumeSize:
+    Description: EBS Volume size
+    Type: Number
+    Default: 8
+    MinValue: 8
+    MaxValue: 1024
+    ConstraintDescription: must be a number between 8 to 1024 Gb
+  ASGmin:
+    Type: Number
+    Description: Minimum Capacity
+    Default: 1
+  ASGmax:
+    Type: Number
+    Description: Maximum Capacity
+    Default: 5
+  ASGdesired:
+    Type: Number
+    Description: Desired Capacity
+    Default: 1
+
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: "Environment"
+        Parameters:
+          - Environment
+      - Label:
+          default: "Network"
+        Parameters:
+          - VPCCIDR
+          - SNCIDRs
+      - Label:
+          default: "EC2 Configuration"
+        Parameters:
+          - AMI
+          - InstanceType
+          - VolumeSize
+      - Label:
+          default: "Auto Scaling Group"
+        Parameters:
+          - ASGmin
+          - ASGmax
+          - ASGdesired
+Mappings:
+  InstanceType:
+    "Small-Use-For-Dev":
+      value: "t2.micro"
+    "Medium-Use-For-Test":
+      value: "t2.medium"
+    "Big-Use-For-Prod":
+      value: "t2.large"
+  EC2TypeBasedOnEnv:
+    development:
+      instanceType: t2.micro
+      KeyPair: dev
+    testing:
+      instanceType: t2.micro
+      KeyPair: test
+    acceptance:
+      instanceType: t2.micro
+      KeyPair: acc
+    production:
+      instanceType: t2.micro
+      KeyPair: prod
+Conditions:
+  Createprod: !Equals
+    - !Ref Environment
+    - production
+  Createdev: !Equals
+    - !Ref Environment
+    - development
+  Createacc: !Equals
+    - !Ref Environment
+    - acceptance
+  Createtest: !Equals
+    - !Ref Environment
+    - testing
+Resources:
+  IAMuser:
+    Type: AWS::IAM::User
+    Condition: Createacc
+    Properties:
+      Groups:
+        - admin
+      LoginProfile:
+        Password: pw4me1234!
+        PasswordResetRequired: No
+      UserName: ACCuser
+  MrBucket:
+    Type: "AWS::S3::Bucket"
+    Properties: {}
+  VPC:
+    Type: "AWS::EC2::VPC"
+    Properties:
+      CidrBlock: !Ref VPCCIDR
+      EnableDnsSupport: "true"
+      EnableDnsHostnames: "true"
+      Tags:
+        - Key: Name
+          Value: CF Test
+  SNa:
+    Type: "AWS::EC2::Subnet"
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: !Select [0, !Ref SNCIDRs]
+      AvailabilityZone:
+        Fn::Select:
+          - 0
+          - Fn::GetAZs: ""
+      MapPublicIpOnLaunch: "True"
+      Tags:
+        - Key: Name
+          Value: SNa Pub
+  SNb:
+    Type: "AWS::EC2::Subnet"
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: !Select [1, !Ref SNCIDRs]
+      AvailabilityZone:
+        Fn::Select:
+          - 1
+          - Fn::GetAZs: ""
+      MapPublicIpOnLaunch: "True"
+      Tags:
+        - Key: Name
+          Value: SNb Pub
+  SNc:
+    Type: "AWS::EC2::Subnet"
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: !Select [2, !Ref SNCIDRs]
+      AvailabilityZone:
+        Fn::Select:
+          - 2
+          - Fn::GetAZs: ""
+      MapPublicIpOnLaunch: "True"
+      Tags:
+        - Key: Name
+          Value: SNc Pub
+  SNd:
+    Type: "AWS::EC2::Subnet"
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: !Select [3, !Ref SNCIDRs]
+      AvailabilityZone:
+        Fn::Select:
+          - 3
+          - Fn::GetAZs: ""
+      MapPublicIpOnLaunch: "True"
+      Tags:
+        - Key: Name
+          Value: SNd Pub
+  SNe:
+    Type: "AWS::EC2::Subnet"
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: !Select [4, !Ref SNCIDRs]
+      AvailabilityZone:
+        Fn::Select:
+          - 4
+          - Fn::GetAZs: ""
+      MapPublicIpOnLaunch: "True"
+      Tags:
+        - Key: Name
+          Value: SNe Pub
+  SNf:
+    Type: "AWS::EC2::Subnet"
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: !Select [5, !Ref SNCIDRs]
+      AvailabilityZone:
+        Fn::Select:
+          - 5
+          - Fn::GetAZs: ""
+      MapPublicIpOnLaunch: "True"
+      Tags:
+        - Key: Name
+          Value: SNf Pub
+  SNaPriv:
+    Type: "AWS::EC2::Subnet"
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: !Select [6, !Ref SNCIDRs]
+      AvailabilityZone:
+        Fn::Select:
+          - 0
+          - Fn::GetAZs: ""
+      MapPublicIpOnLaunch: "False"
+      Tags:
+        - Key: Name
+          Value: SNa Priv
+  SNbPriv:
+    Type: "AWS::EC2::Subnet"
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: !Select [7, !Ref SNCIDRs]
+      AvailabilityZone:
+        Fn::Select:
+          - 1
+          - Fn::GetAZs: ""
+      MapPublicIpOnLaunch: "False"
+      Tags:
+        - Key: Name
+          Value: SNb Priv
+  SNcPriv:
+    Type: "AWS::EC2::Subnet"
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: !Select [8, !Ref SNCIDRs]
+      AvailabilityZone:
+        Fn::Select:
+          - 2
+          - Fn::GetAZs: ""
+      MapPublicIpOnLaunch: "False"
+      Tags:
+        - Key: Name
+          Value: SNc Priv
+  SNdPriv:
+    Type: "AWS::EC2::Subnet"
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: !Select [9, !Ref SNCIDRs]
+      AvailabilityZone:
+        Fn::Select:
+          - 3
+          - Fn::GetAZs: ""
+      MapPublicIpOnLaunch: "False"
+      Tags:
+        - Key: Name
+          Value: SNd Priv
+  SNePriv:
+    Type: "AWS::EC2::Subnet"
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: !Select [10, !Ref SNCIDRs]
+      AvailabilityZone:
+        Fn::Select:
+          - 4
+          - Fn::GetAZs: ""
+      MapPublicIpOnLaunch: "False"
+      Tags:
+        - Key: Name
+          Value: SNe Priv
+  SNfPriv:
+    Type: "AWS::EC2::Subnet"
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: !Select [11, !Ref SNCIDRs]
+      AvailabilityZone:
+        Fn::Select:
+          - 5
+          - Fn::GetAZs: ""
+      MapPublicIpOnLaunch: "False"
+      Tags:
+        - Key: Name
+          Value: SNf Priv
+  CfRt:
+    Type: "AWS::EC2::RouteTable"
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: CF RT
+  CfR:
+    Type: "AWS::EC2::Route"
+    DependsOn:
+      - IGW
+    Properties:
+      RouteTableId: !Ref CfRt
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref IGW
+  SNAassociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref SNa
+      RouteTableId: !Ref CfRt
+  SNBassociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref SNb
+      RouteTableId: !Ref CfRt
+  SNCassociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref SNc
+      RouteTableId: !Ref CfRt
+  SNDassociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref SNd
+      RouteTableId: !Ref CfRt
+  SNEassociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref SNe
+      RouteTableId: !Ref CfRt
+  SNFassociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref SNf
+      RouteTableId: !Ref CfRt
+  IGW:
+    Type: "AWS::EC2::InternetGateway"
+    Properties:
+      Tags:
+        - Key: Name
+          Value: CF IGW
+  IGWAttachment:
+    Type: "AWS::EC2::VPCGatewayAttachment"
+    Properties:
+      VpcId: !Ref VPC
+      InternetGatewayId: !Ref IGW
+  wssg:
+    Type: "AWS::EC2::SecurityGroup"
+    Properties:
+      GroupDescription: Allow http to client host
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: WSa SG
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
+      SecurityGroupEgress:
+        - IpProtocol: tcp
+          FromPort: 0
+          ToPort: 65535
+          CidrIp: 0.0.0.0/0
+  In1:
+    Type: AWS::EC2::Instance
+    Metadata:
+      Comment: Install a simple application
+      "AWS::CloudFormation::Init":
+        config:
+          packages:
+            yum:
+              httpd: []
+          files:
+            /var/www/html/index.html:
+              content: "<h1>Hello World!</h1>"
+              mode: "000644"
+              owner: root
+              group: root
+            /etc/cfn/cfn-hup.conf:
+              content: !Join
+                - ""
+                - - |
+                    [main]
+                  - stack=
+                  - !Ref "AWS::StackId"
+                  - |+
+
+                  - region=
+                  - !Ref "AWS::Region"
+                  - |+
+
+              mode: "000400"
+              owner: root
+              group: root
+            /etc/cfn/hooks.d/cfn-auto-reloader.conf:
+              content: !Join
+                - ""
+                - - |
+                    [cfn-auto-reloader-hook]
+                  - |
+                    triggers=post.update
+                  - >
+                    path=Resources.In1.Metadata.AWS::CloudFormation::Init
+                  - "action=/opt/aws/bin/cfn-init -v "
+                  - "         --stack "
+                  - !Ref "AWS::StackName"
+                  - "         --resource In1 "
+                  - "         --region "
+                  - !Ref "AWS::Region"
+                  - |+
+
+                  - |
+                    runas=root
+              mode: "000400"
+              owner: root
+              group: root
+          services:
+            sysvinit:
+              httpd:
+                enabled: "true"
+                ensureRunning: "true"
+              cfn-hup:
+                enabled: "true"
+                ensureRunning: "true"
+                files:
+                  - /etc/cfn/cfn-hup.conf
+                  - /etc/cfn/hooks.d/cfn-auto-reloader.conf
+    Properties:
+      KeyName: !FindInMap [EC2TypeBasedOnEnv, !Ref Environment, KeyPair]
+      ImageId: !Ref AMI
+      InstanceType:
+        !FindInMap [EC2TypeBasedOnEnv, !Ref Environment, instanceType]
+      SubnetId: !Ref SNa
+      Monitoring: false
+      BlockDeviceMappings:
+        - DeviceName: "/dev/xvda"
+          Ebs:
+            VolumeType: "gp2"
+            DeleteOnTermination: "true"
+            VolumeSize: !Ref VolumeSize
+      SecurityGroupIds:
+        - !Ref wssg
+      UserData: !Base64
+        Fn::Join:
+          - ""
+          - - |
+              #!/bin/bash -xe
+            - |
+              yum update -y aws-cfn-bootstrap
+            - |
+              yum update -y aws-cli
+            - "/opt/aws/bin/cfn-init -v "
+            - "         --stack "
+            - !Ref "AWS::StackName"
+            - "         --resource In1 "
+            - "         --region "
+            - !Ref "AWS::Region"
+            - |+
+
+            - "/opt/aws/bin/cfn-signal -e $? "
+            - "         --stack "
+            - !Ref "AWS::StackName"
+            - "         --resource In1 "
+            - "         --region "
+            - !Ref "AWS::Region"
+            - |+
+
+      Tags:
+        - Key: Name
+          Value: Test Server
+    CreationPolicy:
+      ResourceSignal:
+        Timeout: PT15M
+  In2:
+    Type: AWS::EC2::Instance
+    Metadata:
+      Comment: Install a simple application
+      "AWS::CloudFormation::Init":
+        config:
+          packages:
+            yum:
+              httpd: []
+          files:
+            /var/www/html/index.html:
+              content: "<h1>Hello World!</h1>"
+              mode: "000644"
+              owner: root
+              group: root
+            /etc/cfn/cfn-hup.conf:
+              content: !Join
+                - ""
+                - - |
+                    [main]
+                  - stack=
+                  - !Ref "AWS::StackId"
+                  - |+
+
+                  - region=
+                  - !Ref "AWS::Region"
+                  - |+
+
+              mode: "000400"
+              owner: root
+              group: root
+            /etc/cfn/hooks.d/cfn-auto-reloader.conf:
+              content: !Join
+                - ""
+                - - |
+                    [cfn-auto-reloader-hook]
+                  - |
+                    triggers=post.update
+                  - >
+                    path=Resources.In2.Metadata.AWS::CloudFormation::Init
+                  - "action=/opt/aws/bin/cfn-init -v "
+                  - "         --stack "
+                  - !Ref "AWS::StackName"
+                  - "         --resource In2 "
+                  - "         --region "
+                  - !Ref "AWS::Region"
+                  - |+
+
+                  - |
+                    runas=root
+              mode: "000400"
+              owner: root
+              group: root
+          services:
+            sysvinit:
+              httpd:
+                enabled: "true"
+                ensureRunning: "true"
+              cfn-hup:
+                enabled: "true"
+                ensureRunning: "true"
+                files:
+                  - /etc/cfn/cfn-hup.conf
+                  - /etc/cfn/hooks.d/cfn-auto-reloader.conf
+    Properties:
+      KeyName: !FindInMap [EC2TypeBasedOnEnv, !Ref Environment, KeyPair]
+      ImageId: !Ref AMI
+      InstanceType:
+        !FindInMap [EC2TypeBasedOnEnv, !Ref Environment, instanceType]
+      SubnetId: !Ref SNb
+      Monitoring: false
+      BlockDeviceMappings:
+        - DeviceName: "/dev/xvda"
+          Ebs:
+            VolumeType: "gp2"
+            DeleteOnTermination: "true"
+            VolumeSize: !Ref VolumeSize
+      SecurityGroupIds:
+        - !Ref wssg
+      UserData: !Base64
+        Fn::Join:
+          - ""
+          - - |
+              #!/bin/bash -xe
+            - |
+              yum update -y aws-cfn-bootstrap
+            - |
+              yum update -y aws-cli
+            - "/opt/aws/bin/cfn-init -v "
+            - "         --stack "
+            - !Ref "AWS::StackName"
+            - "         --resource In2 "
+            - "         --region "
+            - !Ref "AWS::Region"
+            - |+
+
+            - "/opt/aws/bin/cfn-signal -e $? "
+            - "         --stack "
+            - !Ref "AWS::StackName"
+            - "         --resource In2 "
+            - "         --region "
+            - !Ref "AWS::Region"
+            - |+
+
+      Tags:
+        - Key: Name
+          Value: Test Server
+    CreationPolicy:
+      ResourceSignal:
+        Timeout: PT15M
+  ApplicationLoadBalancer:
+    Type: "AWS::ElasticLoadBalancingV2::LoadBalancer"
+    Properties:
+      Subnets:
+        - !Ref SNa
+        - !Ref SNb
+        - !Ref SNc
+        - !Ref SNd
+        - !Ref SNe
+        - !Ref SNf
+  ALBListener:
+    Type: "AWS::ElasticLoadBalancingV2::Listener"
+    Properties:
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref ALBTargetGroup
+      LoadBalancerArn: !Ref ApplicationLoadBalancer
+      Port: "80"
+      Protocol: HTTP
+  ALBTargetGroup:
+    Type: "AWS::ElasticLoadBalancingV2::TargetGroup"
+    Properties:
+      HealthCheckIntervalSeconds: 30
+      HealthCheckTimeoutSeconds: 5
+      HealthyThresholdCount: 3
+      Port: 80
+      Protocol: HTTP
+      UnhealthyThresholdCount: 5
+      VpcId: !Ref VPC
+      Targets:
+        - Id: !Ref In1
+          Port: 80
+        - Id: !Ref In2
+          Port: 80
+      TargetGroupAttributes:
+        - Key: stickiness.enabled
+          Value: "true"
+        - Key: stickiness.type
+          Value: lb_cookie
+        - Key: stickiness.lb_cookie.duration_seconds
+          Value: "180"
+  LaunchTemplate:
+    Type: AWS::EC2::LaunchTemplate
+    Metadata:
+      Comment: Install a simple application
+      "AWS::CloudFormation::Init":
+        config:
+          packages:
+            yum:
+              httpd: []
+          files:
+            /var/www/html/index.html:
+              content: "<h1>Hello World!</h1>"
+              mode: "000644"
+              owner: root
+              group: root
+            /etc/cfn/cfn-hup.conf:
+              content: !Join
+                - ""
+                - - |
+                    [main]
+                  - stack=
+                  - !Ref "AWS::StackId"
+                  - |+
+
+                  - region=
+                  - !Ref "AWS::Region"
+                  - |+
+
+              mode: "000400"
+              owner: root
+              group: root
+            /etc/cfn/hooks.d/cfn-auto-reloader.conf:
+              content: !Join
+                - ""
+                - - |
+                    [cfn-auto-reloader-hook]
+                  - |
+                    triggers=post.update
+                  - >
+                    path=Resources.LaunchTemplate.Metadata.AWS::CloudFormation::Init
+                  - "action=/opt/aws/bin/cfn-init -v "
+                  - "         --stack "
+                  - !Ref "AWS::StackName"
+                  - "         --resource LaunchTemplate "
+                  - "         --region "
+                  - !Ref "AWS::Region"
+                  - |+
+
+                  - |
+                    runas=root
+              mode: "000400"
+              owner: root
+              group: root
+          services:
+            sysvinit:
+              httpd:
+                enabled: "true"
+                ensureRunning: "true"
+              cfn-hup:
+                enabled: "true"
+                ensureRunning: "true"
+                files:
+                  - /etc/cfn/cfn-hup.conf
+                  - /etc/cfn/hooks.d/cfn-auto-reloader.conf
+    Properties:
+      LaunchTemplateName: !Sub "${AWS::StackName}-Hello-world-2"
+      LaunchTemplateData:
+        KeyName: !FindInMap [EC2TypeBasedOnEnv, !Ref Environment, KeyPair]
+        ImageId: !Ref AMI
+        InstanceType:
+          !FindInMap [EC2TypeBasedOnEnv, !Ref Environment, instanceType]
+        Monitoring:
+          Enabled: false
+        BlockDeviceMappings:
+          - DeviceName: "/dev/xvda"
+            Ebs:
+              VolumeType: "gp2"
+              DeleteOnTermination: "true"
+              VolumeSize: !Ref VolumeSize
+        SecurityGroupIds:
+          - !Ref wssg
+        UserData: !Base64
+          Fn::Join:
+            - ""
+            - - |
+                #!/bin/bash -xe
+              - |
+                yum update -y aws-cfn-bootstrap
+              - |
+                yum update -y aws-cli
+              - "/opt/aws/bin/cfn-init -v "
+              - "         --stack "
+              - !Ref "AWS::StackName"
+              - "         --resource LaunchTemplate "
+              - "         --region "
+              - !Ref "AWS::Region"
+              - |+
+
+              - "/opt/aws/bin/cfn-signal -e $? "
+              - "         --stack "
+              - !Ref "AWS::StackName"
+              - "         --resource ASG "
+              - "         --region "
+              - !Ref "AWS::Region"
+              - |+
+
+  ASG:
+    Type: "AWS::AutoScaling::AutoScalingGroup"
+    DependsOn:
+      - LaunchTemplate
+    Properties:
+      VPCZoneIdentifier:
+        - !Ref SNa
+        - !Ref SNb
+        - !Ref SNc
+        - !Ref SNd
+        - !Ref SNe
+        - !Ref SNf
+      LaunchTemplate:
+        LaunchTemplateId: !Ref LaunchTemplate
+        Version: !GetAtt LaunchTemplate.LatestVersionNumber
+      MinSize: !Ref ASGmin
+      MaxSize: !Ref ASGmax
+      DesiredCapacity: !Ref ASGdesired
+      TargetGroupARNs:
+        - !Ref ALBTargetGroup
+    CreationPolicy:
+      ResourceSignal:
+        Timeout: PT15M
+        Count: "1"
+    UpdatePolicy:
+      AutoScalingRollingUpdate:
+        MinInstancesInService: "1"
+        MaxBatchSize: "1"
+        PauseTime: PT15M
+        WaitOnResourceSignals: "true"
+  WebServerScaleUpPolicy:
+    Type: "AWS::AutoScaling::ScalingPolicy"
+    Properties:
+      AdjustmentType: ChangeInCapacity
+      AutoScalingGroupName: !Ref ASG
+      Cooldown: "60"
+      ScalingAdjustment: "1"
+  WebServerScaleDownPolicy:
+    Type: "AWS::AutoScaling::ScalingPolicy"
+    Properties:
+      AdjustmentType: ChangeInCapacity
+      AutoScalingGroupName: !Ref ASG
+      Cooldown: "60"
+      ScalingAdjustment: "-1"
+  CPUAlarmHigh:
+    Type: "AWS::CloudWatch::Alarm"
+    Properties:
+      AlarmDescription: Scale-up if CPU > 90% for 10 minutes
+      MetricName: CPUUtilization
+      Namespace: AWS/EC2
+      Statistic: Average
+      Period: "300"
+      EvaluationPeriods: "2"
+      Threshold: "90"
+      AlarmActions:
+        - !Ref WebServerScaleUpPolicy
+      Dimensions:
+        - Name: AutoScalingGroupName
+          Value: !Ref ASG
+      ComparisonOperator: GreaterThanThreshold
+  CPUAlarmLow:
+    Type: "AWS::CloudWatch::Alarm"
+    Properties:
+      AlarmDescription: Scale-down if CPU < 70% for 10 minutes
+      MetricName: CPUUtilization
+      Namespace: AWS/EC2
+      Statistic: Average
+      Period: "300"
+      EvaluationPeriods: "2"
+      Threshold: "70"
+      AlarmActions:
+        - !Ref WebServerScaleDownPolicy
+      Dimensions:
+        - Name: AutoScalingGroupName
+          Value: !Ref ASG
+      ComparisonOperator: LessThanThreshold
+Outputs:
+  URL:
+    Description: URL of the sample website
+    Value: !Join
+      - ""
+      - - "http://"
+        - !GetAtt
+          - ApplicationLoadBalancer
+          - DNSName
